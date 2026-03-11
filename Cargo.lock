@@ -243,6 +243,7 @@ dependencies = [
  "crossterm",
  "mpd",
  "ratatui",
+ "serde",
  "strum 0.28.0",
 ]
 

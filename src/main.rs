@@ -3,7 +3,6 @@ extern crate mpd;
 use color_eyre::Result;
 
 mod app;
-mod ui;
 
 fn main() -> Result<()> {
     // let mut conn = Client::connect("localhost:6600").unwrap();

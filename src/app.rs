@@ -5,15 +5,13 @@ use ratatui::{
     DefaultTerminal,
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style, Stylize},
+    style::{Color, Modifier, Style, Stylize},
     symbols,
     text::Line,
-    widgets::{Block, Gauge, Tabs, Widget},
+    widgets::{Block, List, ListItem, StatefulWidget, Tabs, Widget},
 };
 use std::str::FromStr;
 use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
-
-use crate::ui::utils;
 
 #[derive(Default, Clone, Copy)]
 pub struct App {
@@ -25,12 +23,13 @@ pub struct App {
 
 impl App {
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
-        let mut client = Client::default();
-        client.load("pixeltee", ..).unwrap();
-        client.play().unwrap();
+        let mut state = ClientState {
+            client: Client::default(),
+        };
         while self.is_running() {
-            terminal.draw(|frame| frame.render_widget(self, frame.area()))?;
-            self.handle_events(&mut client)?;
+            self.handle_events(&mut state.client)?;
+            terminal
+                .draw(|frame| frame.render_stateful_widget(&mut self, frame.area(), &mut state))?;
         }
         Ok(())
     }
@@ -40,12 +39,26 @@ impl App {
         client.toggle_pause().unwrap();
     }
 
+    fn clear_queue(&mut self, client: &mut Client) {
+        self.playing = !self.playing;
+        client.clear().unwrap();
+    }
+
+    fn next_song(&mut self, client: &mut Client) {
+        self.playing = !self.playing;
+        client.next().unwrap();
+    }
+
+    fn prev_song(&mut self, client: &mut Client) {
+        self.playing = !self.playing;
+        client.prev().unwrap();
+    }
+
     fn is_running(self) -> bool {
         self.state == AppState::Running
     }
 
-    fn quit(&mut self, client: &mut Client) {
-        client.clear().unwrap();
+    const fn quit(&mut self) {
         self.state = AppState::Quit;
     }
 
@@ -60,12 +73,16 @@ impl App {
     fn handle_events(&mut self, client: &mut Client) -> Result<()> {
         if let Some(key) = event::read()?.as_key_press_event() {
             match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => self.quit(client),
+                KeyCode::Char('q') | KeyCode::Esc => self.quit(),
                 KeyCode::Char('=') | KeyCode::Char('+') => self.modify_vol(5, client),
                 KeyCode::Char('-') => self.modify_vol(-5, client),
                 KeyCode::Char('p') => self.toggle_play(client),
+                KeyCode::Char('c') => self.clear_queue(client),
                 KeyCode::Char('1') => self.selected_tab = SelectedTab::Current,
-                KeyCode::Char('2') => self.selected_tab = SelectedTab::Playlist,
+                KeyCode::Char('2') => self.selected_tab = SelectedTab::Playlists,
+                KeyCode::Char('3') => self.selected_tab = SelectedTab::PlaylistEditor,
+                KeyCode::Char('>') => self.next_song(client),
+                KeyCode::Char('<') => self.prev_song(client),
                 _ => (),
             }
         }
@@ -82,8 +99,13 @@ struct Theme {
     shadow: Color,
 }
 
-impl Widget for App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+impl StatefulWidget for &mut App {
+    type State = ClientState;
+
+    fn render(self, area: Rect, buf: &mut Buffer, state: &mut Self::State) {
+        let status = &mut state.client.status().unwrap();
+
+        self.volume = status.volume;
         let tokyo_night: Theme = Theme {
             text: Color::from_str("#c0caf5").unwrap(),
             background: Color::from_str("#24283b").unwrap(),
@@ -93,26 +115,29 @@ impl Widget for App {
         // Set overall style for the area
         buf.set_style(
             area,
-            Style::default()
+            Style::new()
+                .underline_color(tokyo_night.shadow)
                 .fg(tokyo_night.text)
-                .bg(tokyo_night.background),
+                .bg(tokyo_night.background)
+                .underline_color(tokyo_night.hightlight),
         );
 
         let outer_layout = Layout::vertical(vec![
             Constraint::Percentage(5),
-            Constraint::Percentage(93),
+            Constraint::Percentage(5),
+            Constraint::Percentage(97),
             Constraint::Percentage(2),
         ])
         .split(area);
-
         let top_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(30), // tab layout
-                Constraint::Percentage(50),
-                Constraint::Percentage(20), // volume bar
+                Constraint::Percentage(50), // song name
+                Constraint::Percentage(15), // volume bar
+                Constraint::Percentage(5),  // playback mode (e.g. random)
             ])
-            .split(outer_layout[0]);
+            .split(outer_layout[1]);
 
         Tabs::new(
             SelectedTab::iter().map(|x| Line::from(x.to_string()).fg(tokyo_night.text).bold()),
@@ -121,24 +146,49 @@ impl Widget for App {
         .padding(" ", " ")
         .select(self.selected_tab as usize)
         .block(Block::default())
-        .render(top_layout[0], buf);
+        .render(outer_layout[0], buf);
 
-        // Render the volume gauge in the top section
-        Gauge::default()
-            .label(format!("Volume {}%", self.volume))
-            .percent(self.volume as u16)
-            .render(top_layout[2], buf);
-
-        utils::center(
-            top_layout[2],
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
+        let binding = state.client.queue().unwrap();
+        let current_index = status.song.map(|s| s.pos as usize);
+        let songs: Vec<ListItem> = binding
+            .iter()
+            .enumerate()
+            .map(|(idx, song)| {
+                let title = song.title.as_deref().unwrap_or("Unknown title");
+                let line = Line::from(title.to_string());
+                let item = ListItem::new(line);
+                if Some(idx) == current_index {
+                    item.style(Style::new().add_modifier(Modifier::REVERSED))
+                } else {
+                    item
+                }
+            })
+            .collect();
+        Widget::render(
+            List::new(songs)
+                .highlight_symbol(">")
+                .highlight_style(Modifier::REVERSED),
+            outer_layout[2],
+            buf,
         );
 
-        // Block::bordered()
-        //     .title("Playlist: ".to_span().into_centered_line())
-        //     .render(area, buf);
+        let current_playing = state.client.currentsong().unwrap();
+        if let Some(song) = current_playing {
+            let title = match song.title {
+                Some(title) => title,
+                None => "No Song playing".to_string(),
+            };
+            Line::from(title).render(top_layout[1], buf);
+        }
+        Line::from(format!("Vol: {}%", self.volume)).render(top_layout[2], buf);
+
+        let random = if status.random { "✅" } else { "❌" };
+        Line::from(random).render(top_layout[3], buf);
     }
+}
+
+pub struct ClientState {
+    client: Client,
 }
 
 /// Tabs for the different examples
@@ -148,7 +198,8 @@ impl Widget for App {
 enum SelectedTab {
     #[default]
     Current,
-    Playlist,
+    Playlists,
+    PlaylistEditor,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
