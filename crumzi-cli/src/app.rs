@@ -1,6 +1,7 @@
 use color_eyre::Result;
-use crossterm::event::{self, KeyCode};
-use mpd::Client;
+use crossterm::event::{self, Event, KeyCode};
+// use crumzi_client::Client as Crumzi_Client;
+use mpd::{Client, Song};
 use ratatui::{
     DefaultTerminal,
     buffer::Buffer,
@@ -10,7 +11,7 @@ use ratatui::{
     text::Line,
     widgets::{Block, List, ListItem, StatefulWidget, Tabs, Widget},
 };
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
 
 #[derive(Default, Clone, Copy)]
@@ -25,9 +26,15 @@ impl App {
     pub fn run(mut self, terminal: &mut DefaultTerminal) -> Result<()> {
         let mut state = ClientState {
             client: Client::default(),
+            queue: vec![],
+            elapsed: 0_u64,
         };
         while self.is_running() {
-            self.handle_events(&mut state.client)?;
+            if event::poll(Duration::from_millis(250))?
+                && let Event::Key(key_event) = event::read()?
+            {
+                self.handle_key(key_event.code, &mut state.client);
+            }
             terminal
                 .draw(|frame| frame.render_stateful_widget(&mut self, frame.area(), &mut state))?;
         }
@@ -70,23 +77,20 @@ impl App {
         client.volume(self.volume).unwrap();
     }
 
-    fn handle_events(&mut self, client: &mut Client) -> Result<()> {
-        if let Some(key) = event::read()?.as_key_press_event() {
-            match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => self.quit(),
-                KeyCode::Char('=') | KeyCode::Char('+') => self.modify_vol(5, client),
-                KeyCode::Char('-') => self.modify_vol(-5, client),
-                KeyCode::Char('p') => self.toggle_play(client),
-                KeyCode::Char('c') => self.clear_queue(client),
-                KeyCode::Char('1') => self.selected_tab = SelectedTab::Current,
-                KeyCode::Char('2') => self.selected_tab = SelectedTab::Playlists,
-                KeyCode::Char('3') => self.selected_tab = SelectedTab::PlaylistEditor,
-                KeyCode::Char('>') => self.next_song(client),
-                KeyCode::Char('<') => self.prev_song(client),
-                _ => (),
-            }
+    fn handle_key(&mut self, code: KeyCode, client: &mut Client) {
+        match code {
+            KeyCode::Char('q') | KeyCode::Esc => self.quit(),
+            KeyCode::Char('=') | KeyCode::Char('+') => self.modify_vol(5, client),
+            KeyCode::Char('-') => self.modify_vol(-5, client),
+            KeyCode::Char('p') => self.toggle_play(client),
+            KeyCode::Char('c') => self.clear_queue(client),
+            KeyCode::Char('1') => self.selected_tab = SelectedTab::Current,
+            KeyCode::Char('2') => self.selected_tab = SelectedTab::Playlists,
+            KeyCode::Char('3') => self.selected_tab = SelectedTab::PlaylistEditor,
+            KeyCode::Char('>') => self.next_song(client),
+            KeyCode::Char('<') => self.prev_song(client),
+            _ => (),
         }
-        Ok(())
     }
 }
 
@@ -106,6 +110,7 @@ impl StatefulWidget for &mut App {
         let status = &mut state.client.status().unwrap();
 
         self.volume = status.volume;
+
         let tokyo_night: Theme = Theme {
             text: Color::from_str("#c0caf5").unwrap(),
             background: Color::from_str("#24283b").unwrap(),
@@ -132,9 +137,9 @@ impl StatefulWidget for &mut App {
         let top_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(30), // tab layout
+                Constraint::Percentage(20), // timer
                 Constraint::Percentage(50), // song name
-                Constraint::Percentage(15), // volume bar
+                Constraint::Percentage(25), // volume bar
                 Constraint::Percentage(5),  // playback mode (e.g. random)
             ])
             .split(outer_layout[1]);
@@ -149,6 +154,7 @@ impl StatefulWidget for &mut App {
         .render(outer_layout[0], buf);
 
         let binding = state.client.queue().unwrap();
+        state.queue = binding.clone();
         let current_index = status.song.map(|s| s.pos as usize);
         let songs: Vec<ListItem> = binding
             .iter()
@@ -172,6 +178,19 @@ impl StatefulWidget for &mut App {
             buf,
         );
 
+        let elapsed = status.elapsed.map(|d| d.as_secs()).unwrap_or(0);
+        state.elapsed = elapsed;
+        let duration = status.duration.map(|d| d.as_secs());
+        let timer = if let Some(total) = duration {
+            let (em, es) = (elapsed / 60, elapsed % 60);
+            let (tm, ts) = (total / 60, total % 60);
+            format!("{:02}:{:02}/{:02}:{:02}", em, es, tm, ts)
+        } else {
+            let (em, es) = (elapsed / 60, elapsed % 60);
+            format!("{:02}:{:02}", em, es)
+        };
+        Line::from(timer).render(top_layout[0], buf);
+
         let current_playing = state.client.currentsong().unwrap();
         if let Some(song) = current_playing {
             let title = match song.title {
@@ -180,6 +199,7 @@ impl StatefulWidget for &mut App {
             };
             Line::from(title).render(top_layout[1], buf);
         }
+
         Line::from(format!("Vol: {}%", self.volume)).render(top_layout[2], buf);
 
         let random = if status.random { "✅" } else { "❌" };
@@ -189,6 +209,8 @@ impl StatefulWidget for &mut App {
 
 pub struct ClientState {
     client: Client,
+    queue: Vec<Song>,
+    elapsed: u64,
 }
 
 /// Tabs for the different examples

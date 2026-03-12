@@ -1,12 +1,10 @@
-[package]
-name = "crumzi"
-version = "0.1.0"
+[workspace]
+members = ["crumzi-cli", "crumzi-client"]
+resolver = "2"
+
+[workspace.package]
+version = "0.0.1"
 edition = "2024"
 
-[dependencies]
-color-eyre = "0.6.5"
-crossterm = "0.29.0"
-mpd = { version = "0.1.0", features = ["serde"] }
-ratatui = "0.30.0"
-serde = { version = "1.0.228", features = ["derive"] }
-strum = { version = "0.28", features = ["derive"] }
+[workspace.dependencies]
+tokio = { version = "1.50.0", features = ["full"] }
