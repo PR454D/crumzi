@@ -9,7 +9,7 @@ use ratatui::{
     style::{Color, Modifier, Style, Stylize},
     symbols,
     text::Line,
-    widgets::{Block, List, ListItem, StatefulWidget, Tabs, Widget},
+    widgets::{Block, LineGauge, List, ListItem, StatefulWidget, Tabs, Widget},
 };
 use std::{str::FromStr, time::Duration};
 use strum::{Display, EnumIter, FromRepr, IntoEnumIterator};
@@ -41,9 +41,14 @@ impl App {
         Ok(())
     }
 
-    fn toggle_play(&mut self, client: &mut Client) {
+    fn toggle_pause(&mut self, client: &mut Client) {
         self.playing = !self.playing;
         client.toggle_pause().unwrap();
+    }
+
+    fn play(&mut self, client: &mut Client) {
+        self.playing = !self.playing;
+        client.play().unwrap();
     }
 
     fn clear_queue(&mut self, client: &mut Client) {
@@ -78,18 +83,44 @@ impl App {
     }
 
     fn handle_key(&mut self, code: KeyCode, client: &mut Client) {
+        use crossterm::event::KeyCode::*;
         match code {
-            KeyCode::Char('q') | KeyCode::Esc => self.quit(),
-            KeyCode::Char('=') | KeyCode::Char('+') => self.modify_vol(5, client),
-            KeyCode::Char('-') => self.modify_vol(-5, client),
-            KeyCode::Char('p') => self.toggle_play(client),
-            KeyCode::Char('c') => self.clear_queue(client),
-            KeyCode::Char('1') => self.selected_tab = SelectedTab::Current,
-            KeyCode::Char('2') => self.selected_tab = SelectedTab::Playlists,
-            KeyCode::Char('3') => self.selected_tab = SelectedTab::PlaylistEditor,
-            KeyCode::Char('>') => self.next_song(client),
-            KeyCode::Char('<') => self.prev_song(client),
+            Char('q') | KeyCode::Esc => self.quit(),
+            Char('=') | KeyCode::Char('+') => self.modify_vol(5, client),
+            Char('-') => self.modify_vol(-5, client),
+            Char('p') => self.toggle_pause(client),
+            Char('c') => self.clear_queue(client),
+            Char('1') => self.selected_tab = SelectedTab::Current,
+            Char('2') => self.selected_tab = SelectedTab::Playlists,
+            Char('3') => self.selected_tab = SelectedTab::PlaylistEditor,
+            Char('>') => self.next_song(client),
+            Char('<') => self.prev_song(client),
+            Up | Down | Left | Right | Char('h') | Char('j') | Char('k') | Char('l') => {
+                self.navigate_queue(client, code);
+                self.play(client);
+            }
             _ => (),
+        }
+    }
+
+    fn navigate_queue(&mut self, client: &mut Client, code: KeyCode) {
+        use crossterm::event::KeyCode::*;
+        match code {
+            Left | Char('h') => {
+                if !self.playing {
+                    self.play(client);
+                }
+                self.prev_song(client)
+            }
+            Right | Char('l') => {
+                if !self.playing {
+                    self.play(client);
+                }
+                self.next_song(client)
+            }
+            Up | Char('k') => {}
+            Down | Char('j') => {}
+            _ => {}
         }
     }
 }
@@ -128,10 +159,10 @@ impl StatefulWidget for &mut App {
         );
 
         let outer_layout = Layout::vertical(vec![
-            Constraint::Percentage(5),
-            Constraint::Percentage(5),
-            Constraint::Percentage(97),
-            Constraint::Percentage(2),
+            Constraint::Percentage(5),  // tab name
+            Constraint::Percentage(5),  // top_layout
+            Constraint::Percentage(97), // queue list
+            Constraint::Percentage(2),  // playback gauge
         ])
         .split(area);
         let top_layout = Layout::default()
@@ -166,7 +197,7 @@ impl StatefulWidget for &mut App {
                 if Some(idx) == current_index {
                     item.style(Style::new().add_modifier(Modifier::REVERSED))
                 } else {
-                    item
+                    item.style(Style::new().white())
                 }
             })
             .collect();
@@ -204,6 +235,14 @@ impl StatefulWidget for &mut App {
 
         let random = if status.random { "✅" } else { "❌" };
         Line::from(random).render(top_layout[3], buf);
+
+        if let Some(total) = duration {
+            let line_gauge = LineGauge::default()
+                .block(Block::new().title("LineGauge:"))
+                .filled_style(Style::default().fg(Color::Magenta))
+                .ratio(elapsed as f64 / total as f64);
+            Widget::render(line_gauge, outer_layout[3], buf);
+        }
     }
 }
 
