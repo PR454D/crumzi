@@ -64,4 +64,3 @@ mod tests {
         assert_eq!(cmd.to_line(), r#"add "a b" "x\"y" "c\\d""#);
     }
 }
-

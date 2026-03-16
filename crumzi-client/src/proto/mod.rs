@@ -4,6 +4,8 @@ use crate::error::{AckError, ProtoError, Result};
 
 pub mod command;
 pub mod response;
+#[cfg(test)]
+mod testdata;
 
 pub async fn send<S>(socket: &mut BufStream<S>, cmd: &command::Command) -> Result<()>
 where
@@ -47,3 +49,24 @@ where
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::AsyncWriteExt;
+    use tokio::io::BufStream;
+
+    #[tokio::test]
+    async fn reads_until_ok_and_returns_lines() {
+        let (mut server, client) = tokio::io::duplex(1024);
+        server
+            .write_all(testdata::PLAYLISTINFO_RESPONSE.as_bytes())
+            .await
+            .unwrap();
+        server.shutdown().await.unwrap();
+
+        let mut socket = BufStream::new(client);
+        let lines = read_response_lines(&mut socket).await.unwrap();
+        assert!(lines.iter().any(|l| l.starts_with("file: ")));
+        assert_eq!(lines.last().unwrap(), "Time: 120");
+    }
+}

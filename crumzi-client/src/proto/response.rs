@@ -1,4 +1,4 @@
-use crate::error::{ProtoError, Result};
+use crate::error::{Error, ProtoError, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AckLine {
@@ -17,31 +17,27 @@ pub fn parse_ack_line(line: &str) -> Result<Option<AckLine>> {
     let rest = &line["ACK ".len()..];
     let rest = rest
         .strip_prefix('[')
-        .ok_or_else(|| ProtoError::Parse(format!("bad ACK: {line:?}")))?;
+        .ok_or_else(|| Error::Parse(format!("bad ACK: {line:?}")))?;
     let (code_idx, rest) = rest
         .split_once(']')
-        .ok_or_else(|| ProtoError::Parse(format!("bad ACK: {line:?}")))?;
-    let code_idx = code_idx
-        .strip_suffix(']')
-        .unwrap_or(code_idx)
-        .trim_end_matches(']');
+        .ok_or_else(|| Error::Parse(format!("bad ACK: {line:?}")))?;
     let (code, idx) = code_idx
         .split_once('@')
-        .ok_or_else(|| ProtoError::Parse(format!("bad ACK code/index: {line:?}")))?;
+        .ok_or_else(|| Error::Parse(format!("bad ACK code/index: {line:?}")))?;
     let code: u32 = code
         .parse()
-        .map_err(|_| ProtoError::Parse(format!("bad ACK code: {line:?}")))?;
+        .map_err(|_| Error::Parse(format!("bad ACK code: {line:?}")))?;
     let command_idx: u32 = idx
         .parse()
-        .map_err(|_| ProtoError::Parse(format!("bad ACK index: {line:?}")))?;
+        .map_err(|_| Error::Parse(format!("bad ACK index: {line:?}")))?;
 
     let rest = rest.trim_start();
     let rest = rest
         .strip_prefix('{')
-        .ok_or_else(|| ProtoError::Parse(format!("bad ACK: {line:?}")))?;
+        .ok_or_else(|| Error::Parse(format!("bad ACK: {line:?}")))?;
     let (command, rest) = rest
         .split_once('}')
-        .ok_or_else(|| ProtoError::Parse(format!("bad ACK: {line:?}")))?;
+        .ok_or_else(|| Error::Parse(format!("bad ACK: {line:?}")))?;
 
     let message = rest.trim_start().to_string();
     Ok(Some(AckLine {
@@ -83,4 +79,3 @@ mod tests {
         assert_eq!(parse_pair_line("file: x.mp3").unwrap(), ("file", "x.mp3"));
     }
 }
-
