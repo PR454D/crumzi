@@ -5,7 +5,7 @@ use crate::error::{AckError, ProtoError, Result};
 pub mod command;
 pub mod response;
 #[cfg(test)]
-mod testdata;
+pub(crate) mod testdata;
 
 pub async fn send<S>(socket: &mut BufStream<S>, cmd: &command::Command) -> Result<()>
 where

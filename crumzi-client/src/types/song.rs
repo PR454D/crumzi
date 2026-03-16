@@ -40,9 +40,7 @@ pub fn parse_song_list(lines: &[String]) -> Result<Vec<Song>> {
                 current = Some(Song::new(v.to_string()));
             }
             _ => {
-                let s = current
-                    .as_mut()
-                    .ok_or(ProtoError::MissingField("file"))?;
+                let s = current.as_mut().ok_or(ProtoError::MissingField("file"))?;
                 match k {
                     "Title" => s.title = Some(v.to_string()),
                     "Artist" => s.artist = Some(v.to_string()),

@@ -27,12 +27,15 @@ use tokio::{
 use error::{ProtoError, Result};
 
 mod error;
+mod playback;
+#[cfg(test)]
+mod playback_tests;
 mod proto;
 mod queue;
 mod status;
 mod types;
 
-pub use types::Song;
+pub use types::{Song, State, Status};
 
 pub struct Client<S = TcpStream>
 where
