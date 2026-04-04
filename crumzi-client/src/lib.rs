@@ -26,16 +26,23 @@ use tokio::{
 
 use error::{ProtoError, Result};
 
+mod config;
+#[cfg(test)]
+mod config_tests;
 mod error;
 mod playback;
 #[cfg(test)]
 mod playback_tests;
 mod proto;
 mod queue;
-mod status;
+#[cfg(test)]
+mod queue_tests;
+mod stored_playlists;
+#[cfg(test)]
+mod stored_playlists_tests;
 mod types;
 
-pub use types::{Song, State, Status};
+pub use types::{Playlist, Song, State, Status};
 
 pub struct Client<S = TcpStream>
 where
@@ -79,7 +86,10 @@ where
         &self.server_version
     }
 
-    pub(crate) async fn run(&mut self, cmd: proto::command::Command) -> Result<Vec<String>> {
+    pub(crate) async fn run(
+        &mut self,
+        cmd: proto::command::Command,
+    ) -> Result<Vec<String>> {
         proto::send(&mut self.socket, &cmd).await?;
         proto::read_response_lines(&mut self.socket).await
     }

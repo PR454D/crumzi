@@ -39,7 +39,11 @@ where
         parse_song_list(&lines)
     }
 
-    pub async fn playlistinfo_range(&mut self, start: u32, end: u32) -> Result<Vec<Song>> {
+    pub async fn playlistinfo_range(
+        &mut self,
+        start: u32,
+        end: u32,
+    ) -> Result<Vec<Song>> {
         let range = format!("{start}:{end}");
         let lines = self.run(Command::new("playlistinfo").arg(range)).await?;
         parse_song_list(&lines)
@@ -50,11 +54,26 @@ where
         // response: Id: <number>
         for line in lines {
             if let Some(v) = line.strip_prefix("Id: ") {
-                return v
-                    .parse()
-                    .map_err(|_| crate::error::Error::Parse(format!("bad Id: {v:?}")));
+                return v.parse().map_err(|_| {
+                    crate::error::Error::Parse(format!("bad Id: {v:?}"))
+                });
             }
         }
         Err(crate::error::ProtoError::MissingField("Id").into())
+    }
+
+    pub async fn playlistid(&mut self, id: u32) -> Result<Song> {
+        let lines = self
+            .run(Command::new("playlistid").arg(id.to_string()))
+            .await?;
+        let mut songs = parse_song_list(&lines)?;
+        if songs.len() != 1 {
+            return Err(crate::error::Error::Parse(if songs.is_empty() {
+                "playlistid: empty song".into()
+            } else {
+                format!("playlistid: expected one song, got {}", songs.len())
+            }));
+        }
+        Ok(songs.remove(0))
     }
 }

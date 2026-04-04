@@ -1,14 +1,18 @@
 use crate::error::{Error, Result};
 use crate::proto::response::parse_pair_line;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize,
+)]
 pub enum State {
     Play,
     Pause,
     Stop,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize,
+)]
 pub struct Status {
     pub volume: Option<i8>,
     pub repeat: bool,

@@ -1,4 +1,6 @@
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufStream};
+use tokio::io::{
+    AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufStream,
+};
 
 use crate::error::{AckError, ProtoError, Result};
 
@@ -7,7 +9,10 @@ pub mod response;
 #[cfg(test)]
 pub(crate) mod testdata;
 
-pub async fn send<S>(socket: &mut BufStream<S>, cmd: &command::Command) -> Result<()>
+pub async fn send<S>(
+    socket: &mut BufStream<S>,
+    cmd: &command::Command,
+) -> Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -18,7 +23,9 @@ where
     Ok(())
 }
 
-pub async fn read_response_lines<S>(socket: &mut BufStream<S>) -> Result<Vec<String>>
+pub async fn read_response_lines<S>(
+    socket: &mut BufStream<S>,
+) -> Result<Vec<String>>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {

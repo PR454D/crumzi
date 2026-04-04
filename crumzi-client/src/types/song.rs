@@ -40,28 +40,26 @@ pub fn parse_song_list(lines: &[String]) -> Result<Vec<Song>> {
                 current = Some(Song::new(v.to_string()));
             }
             _ => {
-                let s = current.as_mut().ok_or(ProtoError::MissingField("file"))?;
+                let s =
+                    current.as_mut().ok_or(ProtoError::MissingField("file"))?;
                 match k {
                     "Title" => s.title = Some(v.to_string()),
                     "Artist" => s.artist = Some(v.to_string()),
                     "Album" => s.album = Some(v.to_string()),
                     "Time" => {
-                        s.duration = Some(
-                            v.parse()
-                                .map_err(|_| Error::Parse(format!("bad Time: {v:?}")))?,
-                        )
+                        s.duration = Some(v.parse().map_err(|_| {
+                            Error::Parse(format!("bad Time: {v:?}"))
+                        })?)
                     }
                     "Pos" => {
-                        s.pos = Some(
-                            v.parse()
-                                .map_err(|_| Error::Parse(format!("bad Pos: {v:?}")))?,
-                        )
+                        s.pos = Some(v.parse().map_err(|_| {
+                            Error::Parse(format!("bad Pos: {v:?}"))
+                        })?)
                     }
                     "Id" => {
-                        s.id = Some(
-                            v.parse()
-                                .map_err(|_| Error::Parse(format!("bad Id: {v:?}")))?,
-                        )
+                        s.id = Some(v.parse().map_err(|_| {
+                            Error::Parse(format!("bad Id: {v:?}"))
+                        })?)
                     }
                     _ => {}
                 }

@@ -1,0 +1,106 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Extract version from Cargo.toml
+        id: cargo_version
+        shell: bash
+        run: echo "version=$(grep '^version' Cargo.toml | head -1 | sed 's/version = \"//;s/\"//')" >> $GITHUB_OUTPUT
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Upload release artifact (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ress-linux-v${{ steps.cargo_version.outputs.version }}
+          path: target/release/ress
+
+      - name: Upload release artifact (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ress-macos-v${{ steps.cargo_version.outputs.version }}
+          path: target/release/ress
+
+      - name: Upload release artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ress-windows-v${{ steps.cargo_version.outputs.version }}
+          path: target/release/ress.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract version from Cargo.toml
+        id: cargo_version
+        run: echo "version=$(grep '^version' Cargo.toml | head -1 | sed 's/version = \"//;s/\"//')" >> $GITHUB_OUTPUT
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag v${{ steps.cargo_version.outputs.version }}
+          git push origin v${{ steps.cargo_version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          mkdir -p release_files
+          cp artifacts/ress-linux-v*/* release_files/ress-linux || true
+          cp artifacts/ress-macos-v*/* release_files/ress-macos || true
+          cp artifacts/ress-windows-v*/* release_files/ress-windows.exe || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release_files/*
+          tag_name: v${{ steps.cargo_version.outputs.version }}
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
