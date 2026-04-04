@@ -45,22 +45,22 @@ jobs:
         if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
-          name: ress-linux-v${{ steps.cargo_version.outputs.version }}
-          path: target/release/ress
+          name: crumzi-linux-v${{ steps.cargo_version.outputs.version }}
+          path: target/release/crumzi-cli
 
       - name: Upload release artifact (macOS)
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4
         with:
-          name: ress-macos-v${{ steps.cargo_version.outputs.version }}
-          path: target/release/ress
+          name: crumzi-macos-v${{ steps.cargo_version.outputs.version }}
+          path: target/release/crumzi-cli
 
       - name: Upload release artifact (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
-          name: ress-windows-v${{ steps.cargo_version.outputs.version }}
-          path: target/release/ress.exe
+          name: crumzi-windows-v${{ steps.cargo_version.outputs.version }}
+          path: target/release/crumzi-cli.exe
 
   release:
     needs: build
@@ -92,9 +92,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p release_files
-          cp artifacts/ress-linux-v*/* release_files/ress-linux || true
-          cp artifacts/ress-macos-v*/* release_files/ress-macos || true
-          cp artifacts/ress-windows-v*/* release_files/ress-windows.exe || true
+          cp artifacts/crumzi-linux-v*/* release_files/crumzi-linux || true
+          cp artifacts/crumzi-macos-v*/* release_files/crumzi-macos || true
+          cp artifacts/crumzi-windows-v*/* release_files/crumzi-windows.exe || true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
